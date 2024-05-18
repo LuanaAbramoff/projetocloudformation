@@ -1,0 +1,299 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Resources:
+  MyVPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.0.0.0/16
+
+  LuanaInternetGateway:
+    Type: AWS::EC2::InternetGateway
+
+  AttachGateway:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      VpcId: !Ref MyVPC
+      InternetGatewayId: !Ref LuanaInternetGateway
+
+  DynamoDBTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: LuanaDynamoDBTable
+      AttributeDefinitions:
+        - AttributeName: id
+          AttributeType: S
+      KeySchema:
+        - AttributeName: id
+          KeyType: HASH
+      ProvisionedThroughput:
+        ReadCapacityUnits: 5
+        WriteCapacityUnits: 5
+
+  LuanaALB:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    DependsOn: AttachGateway
+    Properties:
+      Name: LuanaALB
+      Subnets:
+        - !Ref MySubnet1
+        - !Ref MySubnet2
+      SecurityGroups:
+        - !Ref ALBSecurityGroup
+      Scheme: internet-facing
+      Type: application
+
+  LuanaTargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      Name: LuanaTargetGroup
+      VpcId: !Ref MyVPC
+      Protocol: HTTP
+      Port: 80
+      HealthCheckProtocol: HTTP
+      HealthCheckPath: /
+      HealthCheckIntervalSeconds: 30
+      HealthCheckTimeoutSeconds: 10
+      HealthyThresholdCount: 3
+      UnhealthyThresholdCount: 3
+
+  MyListener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    DependsOn: LuanaALB
+    Properties:
+      LoadBalancerArn: !Ref LuanaALB
+      Protocol: HTTP
+      Port: 80
+      DefaultActions:
+        - Type: forward
+          TargetGroupArn: !Ref LuanaTargetGroup
+
+  MySubnet1:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref MyVPC
+      CidrBlock: 10.0.3.0/24
+      AvailabilityZone: us-east-2a
+      MapPublicIpOnLaunch: true
+     
+  MySubnet2:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref MyVPC
+      CidrBlock: 10.0.5.0/24
+      AvailabilityZone: us-east-2b
+      MapPublicIpOnLaunch: true
+
+  ALBSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    DependsOn: MyVPC
+    Properties:
+      GroupDescription: Security group for ALB
+      VpcId: !Ref MyVPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: 0.0.0.0/0  # Exemplo para permitir tráfego HTTP
+
+  SSHSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    DependsOn: MyVPC
+    Properties:
+      GroupDescription: Security group for SSH
+      VpcId: !Ref MyVPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          CidrIp: 0.0.0.0/0  # Permitindo tráfego SSH de qualquer lugar. Considere restringir a IPs específicos.
+
+  MyLaunchConfiguration:
+    Type: AWS::AutoScaling::LaunchConfiguration
+    Properties:
+      ImageId: "ami-0ddda618e961f2270"  # Substitua pelo ID da sua AMI com a aplicação pré-instalada
+      InstanceType: t2.micro  # Tipo de instância desejado
+      KeyName: key-pair-luanawa
+      SecurityGroups:
+        - !Ref SSHSecurityGroup  # Grupo de segurança para tráfego SSH
+      IamInstanceProfile: !Ref DynamoDBAccessInstanceProfile
+      UserData:
+        Fn::Base64: !Sub |
+          #!/bin/bash
+
+          # Atualiza os pacotes e instalações iniciais
+          sudo yum update -y
+          sudo yum install -y python3 python3-pip
+
+          # Instala as dependências do Flask e do Boto3
+          sudo pip3 install flask boto3
+
+          # Cria o diretório do aplicativo e navega até ele
+          mkdir -p /home/ec2-user/app
+          cd /home/ec2-user/app
+
+          # Conteúdo do app.py
+          cat <<EOF > app.py
+          from flask import Flask, render_template, jsonify, request
+          import boto3
+
+          app = Flask(__name__)
+
+          # Configurações do AWS SDK
+          dynamodb = boto3.resource("dynamodb", region_name="us-east-2")
+          table = dynamodb.Table("LuanaDynamoDBTable")
+
+          # Rota raiz que renderiza o arquivo index.html
+          @app.route("/")
+          def index():
+              return render_template("index.html")
+
+          # Rota para buscar todos os itens na tabela
+          @app.route("/items", methods=["GET"])
+          def get_items():
+              try:
+                  response = table.scan()
+                  return jsonify(response["Items"])
+              except Exception as e:
+                  return jsonify({"error": str(e)}), 500
+
+          # Rota para adicionar um novo item à tabela
+          @app.route("/add_item", methods=["POST"])
+          def add_item():
+              try:
+                  # Obter dados do formulário
+                  id = request.form["id"]
+                  name = request.form["name"]
+                  description = request.form["description"]
+
+                  # Adicionar item à tabela
+                  table.put_item(Item={"id": id, "name": name, "description": description})
+
+                  return jsonify({"message": "Item adicionado com sucesso"}), 201
+              except Exception as e:
+                  return jsonify({"error": str(e)}), 500
+
+          if __name__ == "__main__":
+              app.run(host="0.0.0.0", port=80, debug=True)
+          EOF
+
+          # Executa o aplicativo Flask em segundo plano
+          sudo nohup python3 app.py &
+
+  MyAutoScalingGroup:
+    Type: AWS::AutoScaling::AutoScalingGroup
+    Properties:
+      LaunchConfigurationName: !Ref MyLaunchConfiguration
+      MinSize: 2  # Número mínimo de instâncias no grupo
+      MaxSize: 7  # Número máximo de instâncias no grupo
+      DesiredCapacity: 3  # Número desejado de instâncias no grupo
+      TargetGroupARNs:
+        - !Ref LuanaTargetGroup
+      VPCZoneIdentifier:
+        - !Ref MySubnet1
+        - !Ref MySubnet2
+      HealthCheckType: ELB
+      HealthCheckGracePeriod: 300  # Período de tempo em segundos antes de iniciar os testes de integridade
+
+  MyScalingPolicy:
+    Type: AWS::AutoScaling::ScalingPolicy
+    Properties:
+      AutoScalingGroupName: !Ref MyAutoScalingGroup
+      PolicyType: TargetTrackingScaling
+      TargetTrackingConfiguration:
+        TargetValue: 70.0  # Valor alvo da métrica
+        PredefinedMetricSpecification:
+          PredefinedMetricType: ASGAverageCPUUtilization
+
+  MyCPUAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmDescription: "Alarm for CPU Utilization exceeding 70%"
+      Namespace: AWS/EC2
+      MetricName: CPUUtilization
+      Dimensions:
+        - Name: AutoScalingGroupName
+          Value: !Ref MyAutoScalingGroup
+      Statistic: Average
+      Period: 60
+      EvaluationPeriods: 5
+      Threshold: 70
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      AlarmActions:
+        - !Ref MyScalingPolicy
+
+  DynamoDBSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Security group for DynamoDB
+      VpcId: !Ref MyVPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 443
+          ToPort: 443
+          SourceSecurityGroupId: !Ref ALBSecurityGroup
+
+  DynamoDBAccessRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ec2.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: DynamoDBAccessPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - dynamodb:GetItem
+                  - dynamodb:PutItem
+                  - dynamodb:DeleteItem
+                  - dynamodb:UpdateItem
+                  # Adicione outras permissões conforme necessário
+                Resource: !GetAtt DynamoDBTable.Arn
+
+  DynamoDBAccessInstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Roles: [!Ref DynamoDBAccessRole]
+
+  PublicRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref MyVPC
+
+  PublicRoute:
+    Type: AWS::EC2::Route
+    DependsOn: AttachGateway
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref LuanaInternetGateway
+
+  PublicSubnetRouteTableAssociation1:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref MySubnet1
+      RouteTableId: !Ref PublicRouteTable
+
+  PublicSubnetRouteTableAssociation2:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref MySubnet2
+      RouteTableId: !Ref PublicRouteTable
+
+  DynamoDBVPCEndpoint:
+    Type: AWS::EC2::VPCEndpoint
+    Properties:
+      ServiceName: com.amazonaws.us-east-2.dynamodb
+      VpcId: !Ref MyVPC
+      RouteTableIds:
+        - !Ref PublicRouteTable
+      VpcEndpointType: Gateway
+Outputs:
+  ALBDNSName:
+    Description: DNS público do Application Load Balancer
+    Value: !GetAtt LuanaALB.DNSName

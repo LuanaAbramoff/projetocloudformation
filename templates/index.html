@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Interface para Aplicação Flask</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}"> <!-- Referência ao arquivo CSS -->
+</head>
+<body>
+    <h1>Interface para Aplicação Flask</h1>
+    
+    <!-- Formulário para adicionar um novo item -->
+    <form id="addItemForm">
+        <label for="id">ID:</label>
+        <input type="text" id="id" name="id" required><br>
+        <label for="name">Nome:</label>
+        <input type="text" id="name" name="name" required><br>
+        <label for="description">Descrição:</label>
+        <textarea id="description" name="description" required></textarea><br>
+        <button type="submit">Adicionar Item</button>
+    </form>
+
+    <!-- Div para exibir mensagens de resposta -->
+    <div id="responseMessage"></div>
+
+    <script src="{{ url_for('static', filename='script.js') }}"></script> <!-- Referência ao arquivo JavaScript -->
+</body>
+</html>

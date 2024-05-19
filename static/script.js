@@ -27,7 +27,36 @@ function addItem() {
         console.error('Erro:', error);
         // Exibir mensagem de erro
         var responseMessage = document.getElementById("responseMessage");
-        responseMessage.textContent = 'Erro ao adicionar o item';
+        responseMessage.textContent = 'Erro ao adicionar o fato';
         responseMessage.style.display = 'block'; // Exibir a mensagem de erro
+    });
+}
+
+// Função para lidar com o clique no botão de visualizar fatos
+document.getElementById("viewFactsButton").addEventListener("click", function() {
+    viewFacts(); // Chamar a função para visualizar os fatos
+});
+
+// Função para visualizar fatos existentes
+function viewFacts() {
+    fetch('/items')
+    .then(response => response.json())
+    .then(data => {
+        // Exibir os fatos na div factsList
+        var factsList = document.getElementById("factsList");
+        factsList.innerHTML = ''; // Limpar qualquer conteúdo existente
+        data.forEach(item => {
+            var factItem = document.createElement("div");
+            factItem.textContent = `ID: ${item.id}, Nome: ${item.name}, Fato curioso: ${item.fato_curioso}`;
+            factsList.appendChild(factItem);
+        });
+        factsList.style.display = 'block'; // Exibir a lista de fatos
+    })
+    .catch(error => {
+        console.error('Erro:', error);
+        // Exibir mensagem de erro
+        var factsList = document.getElementById("factsList");
+        factsList.textContent = 'Erro ao buscar os fatos';
+        factsList.style.display = 'block'; // Exibir a mensagem de erro
     });
 }

@@ -113,7 +113,7 @@ Resources:
       InstanceType: t2.micro  # Tipo de instância desejado
       KeyName: key-pair-luanawa
       SecurityGroups:
-        - !Ref SSHSecurityGroup  # Grupo de segurança para tráfego SSH
+        - !Ref ALBSecurityGroup  # Grupo de segurança para tráfego SSH
       IamInstanceProfile: !Ref DynamoDBAccessInstanceProfile
       UserData:
         Fn::Base64: !Sub |
@@ -121,62 +121,25 @@ Resources:
 
           # Atualiza os pacotes e instalações iniciais
           sudo yum update -y
-          sudo yum install -y python3 python3-pip
+          sudo yum install -y python3 python3-pip git
 
-          # Instala as dependências do Flask e do Boto3
-          sudo pip3 install flask boto3
+          # Clona o repositório do GitHub
+          git clone https://github.com/LuanaAbramoff/projetocloudformation.git /home/ec2-user/app
 
-          # Cria o diretório do aplicativo e navega até ele
-          mkdir -p /home/ec2-user/app
+          # Navega até o diretório do aplicativo
           cd /home/ec2-user/app
 
-          # Conteúdo do app.py
-          cat <<EOF > app.py
-          from flask import Flask, render_template, jsonify, request
-          import boto3
+          # Instala as dependências do Flask e do Boto3
+          sudo pip3 install flask boto3  # Ajuste conforme seu requirements.txt
 
-          app = Flask(__name__)
-
-          # Configurações do AWS SDK
-          dynamodb = boto3.resource("dynamodb", region_name="us-east-2")
-          table = dynamodb.Table("LuanaDynamoDBTable")
-
-          # Rota raiz que renderiza o arquivo index.html
-          @app.route("/")
-          def index():
-              return render_template("index.html")
-
-          # Rota para buscar todos os itens na tabela
-          @app.route("/items", methods=["GET"])
-          def get_items():
-              try:
-                  response = table.scan()
-                  return jsonify(response["Items"])
-              except Exception as e:
-                  return jsonify({"error": str(e)}), 500
-
-          # Rota para adicionar um novo item à tabela
-          @app.route("/add_item", methods=["POST"])
-          def add_item():
-              try:
-                  # Obter dados do formulário
-                  id = request.form["id"]
-                  name = request.form["name"]
-                  description = request.form["description"]
-
-                  # Adicionar item à tabela
-                  table.put_item(Item={"id": id, "name": name, "description": description})
-
-                  return jsonify({"message": "Item adicionado com sucesso"}), 201
-              except Exception as e:
-                  return jsonify({"error": str(e)}), 500
-
-          if __name__ == "__main__":
-              app.run(host="0.0.0.0", port=80, debug=True)
-          EOF
+          # Certifique-se de que os diretórios estáticos e templates estão no lugar certo
+          sudo mkdir -p /var/www/html/static /var/www/html/templates
+          sudo cp -r /home/ec2-user/app/static/* /var/www/html/static/
+          sudo cp -r /home/ec2-user/app/templates/* /var/www/html/templates/
 
           # Executa o aplicativo Flask em segundo plano
           sudo nohup python3 app.py &
+
 
   MyAutoScalingGroup:
     Type: AWS::AutoScaling::AutoScalingGroup
@@ -252,6 +215,7 @@ Resources:
                   - dynamodb:PutItem
                   - dynamodb:DeleteItem
                   - dynamodb:UpdateItem
+                  - dynamodb:Scan
                   # Adicione outras permissões conforme necessário
                 Resource: !GetAtt DynamoDBTable.Arn
 

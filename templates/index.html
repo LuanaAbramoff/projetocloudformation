@@ -3,11 +3,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Interface para Aplicação Flask</title>
+    <title>Digite um fato inédito sobre o Avellino divo rei da internet</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}"> <!-- Referência ao arquivo CSS -->
 </head>
 <body>
-    <h1>Interface para Aplicação Flask</h1>
+    <h1>Digite um fato inédito sobre o Avellino divo rei da internet</h1>
     
     <!-- Formulário para adicionar um novo item -->
     <form id="addItemForm">
@@ -15,10 +15,16 @@
         <input type="text" id="id" name="id" required><br>
         <label for="name">Nome:</label>
         <input type="text" id="name" name="name" required><br>
-        <label for="description">Descrição:</label>
-        <textarea id="description" name="description" required></textarea><br>
-        <button type="submit">Adicionar Item</button>
+        <label for="fato_curioso">Fato curioso:</label>
+        <textarea id="fato_curioso" name="fato_curioso" required></textarea><br>
+        <button type="submit">Adicionar Fato</button>
     </form>
+
+    <!-- Botão para visualizar fatos -->
+    <button id="viewFactsButton">Ver Fatos Existentes</button>
+
+    <!-- Div para exibir fatos existentes -->
+    <div id="factsList"></div>
 
     <!-- Div para exibir mensagens de resposta -->
     <div id="responseMessage"></div>

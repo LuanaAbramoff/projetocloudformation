@@ -28,10 +28,10 @@ def add_item():
         # Obter dados do formulário
         id = request.form['id']
         name = request.form['name']
-        description = request.form['description']
+        fatocurioso = request.form['fato_curioso']
         
         # Adicionar item à tabela
-        table.put_item(Item={'id': id, 'name': name, 'description': description})
+        table.put_item(Item={'id': id, 'name': name, 'fato_curioso': fatocurioso})
         
         return jsonify({'message': 'Item adicionado com sucesso'}), 201
     except Exception as e:

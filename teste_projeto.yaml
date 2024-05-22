@@ -1,4 +1,5 @@
 AWSTemplateFormatVersion: '2010-09-09'
+Description: Projeto Cloud - Luana Wilner Abramoff
 Resources:
   MyVPC:
     Type: AWS::EC2::VPC
@@ -147,7 +148,7 @@ Resources:
       LaunchConfigurationName: !Ref MyLaunchConfiguration
       MinSize: 2  # Número mínimo de instâncias no grupo
       MaxSize: 7  # Número máximo de instâncias no grupo
-      DesiredCapacity: 3  # Número desejado de instâncias no grupo
+      DesiredCapacity: 2   # Número desejado de instâncias no grupo
       TargetGroupARNs:
         - !Ref LuanaTargetGroup
       VPCZoneIdentifier:

@@ -66,7 +66,7 @@ Existem duas principais partes que envolvem o Banco de Dados DynamoDB dentro do 
 
 ## 3. Execução dos scripts
 
-1. Primeiramente tem que se identificar o perfil usado, nesse caso com o usuário `luanawa` . Isso é feito com os dois comandos a seguir:
+1. Primeiramente tem que se identificar o perfil usado, criando o arquivo .pem com último comando dentre esses 3, substitua nos lugares do código onde estiver  'key-pair-luanawa' pelo nome do seu par de chaves. Isso é feito com os três comandos a seguir:
     
     ```bash
     aws sts get-caller-identity
@@ -74,6 +74,10 @@ Existem duas principais partes que envolvem o Banco de Dados DynamoDB dentro do 
     
     ```bash
     aws configure
+    ```
+
+    ```bash
+    aws ec2 create-key-pair --key-name <NomeDaSuaChave> --query 'KeyMaterial' --output text><NomeDaSuaChave>.pem
     ```
     
 
